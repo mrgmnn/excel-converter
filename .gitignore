@@ -3,3 +3,5 @@ dist/
 *.log
 .vscode
 deploy/
+.node-persist
+.vs
