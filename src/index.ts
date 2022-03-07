@@ -1,30 +1,68 @@
-import { QMainWindow, QWidget, QLabel, FlexLayout, QPushButton, QIcon } from '@nodegui/nodegui';
-import logo from '../assets/logox200.png';
+import {
+  QMainWindow,
+  QWidget,
+  FlexLayout,
+  QPushButton,
+  FileMode,
+  QFileDialog,
+  QApplication,
+  NodeWidget,
+} from '@nodegui/nodegui';
+import xlsx from 'node-xlsx';
+import storage from 'node-persist';
 
 const win = new QMainWindow();
-win.setWindowTitle("Hello World");
+win.setWindowTitle('XLSX Converter');
+
+let startupFolder;
+let fileDialog: QFileDialog;
+
+const boot = async () => {
+  await storage.init();
+  startupFolder = await storage.getItem('folder');
+  fileDialog = new QFileDialog(win, 'Select file', startupFolder);
+  fileDialog.setFileMode(FileMode.AnyFile);
+  fileDialog.setNameFilter('Excel (*.xlsx)');
+  win.show();
+}
 
 const centralWidget = new QWidget();
-centralWidget.setObjectName("myroot");
+centralWidget.setObjectName('myroot');
 const rootLayout = new FlexLayout();
 centralWidget.setLayout(rootLayout);
 
-const label = new QLabel();
-label.setObjectName("mylabel");
-label.setText("Hello");
-
 const button = new QPushButton();
-button.setIcon(new QIcon(logo));
+button.setText('Click me');
 
-const label2 = new QLabel();
-label2.setText("World");
-label2.setInlineStyle(`
-  color: red;
-`);
+const clipboard = QApplication.clipboard();
 
-rootLayout.addWidget(label);
+button.addEventListener('clicked', async() => {
+  const lastFolder = await storage.getItem('folder');
+  fileDialog = new QFileDialog(win, 'Select file', lastFolder);
+  fileDialog.exec();
+  const selectedFiles = fileDialog.selectedFiles();
+  selectedFiles.map(async (file) => {
+    const splittedFolder = file.split('/');
+    splittedFolder.pop();
+    const folder = splittedFolder.join('/');
+    await storage.setItem('folder',folder)
+    try {
+      const resultArr = xlsx.parse(file);
+      resultArr.map(({ data }) => {
+        const reducedText: any = data.reduce((acc: any, item: any) => {
+          if (!item.length || !parseInt(item[1], 10)) return acc;
+          acc.push(`${item[1]}:true`);
+          return acc;
+        }, []);
+        clipboard.setText(`${reducedText.join(';')};`);
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  });
+});
+
 rootLayout.addWidget(button);
-rootLayout.addWidget(label2);
 win.setCentralWidget(centralWidget);
 win.setStyleSheet(
   `
@@ -41,6 +79,6 @@ win.setStyleSheet(
     }
   `
 );
-win.show();
+boot();
 
 (global as any).win = win;
